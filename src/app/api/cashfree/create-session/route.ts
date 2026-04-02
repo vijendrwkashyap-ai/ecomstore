@@ -4,11 +4,6 @@ export async function POST(req: Request) {
   try {
     const { amount, customerName, customerPhone, orderId } = await req.json();
 
-    if (!amount || !customerPhone || !orderId) {
-      return NextResponse.json({ error: "Missing required order details" }, { status: 400 });
-    }
-
-    // Ensure IDs are picked from process.env securely
     const appId = process.env.CASHFREE_APP_ID;
     const secretKey = process.env.CASHFREE_SECRET_KEY;
 
@@ -16,20 +11,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Server Configuration Error: API Keys Missing" }, { status: 500 });
     }
 
-    const url = "https://api.cashfree.com/pg/orders"; // Forced Production based on User Creds
-
-    let origin = req.headers.get("origin") || "https://denimcode.myshopify.com";
-    
-    // CASHFREE PRODUCTION CONSTRAINT: 
-    // The return_url MUST start with https. Localhost (http) will be rejected.
-    // We override localhost with the secure shop domain for the API call to succeed.
-    if (origin.includes("localhost")) {
-       origin = "https://denimcode.myshopify.com";
-    } else if (origin.startsWith("http://")) {
-       origin = origin.replace("http://", "https://");
-    }
-
-    const cfResponse = await fetch(url, {
+    const response = await fetch("https://api.cashfree.com/pg/orders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -38,39 +20,38 @@ export async function POST(req: Request) {
         "x-client-secret": secretKey,
       },
       body: JSON.stringify({
-        order_id: orderId,
-        order_amount: parseFloat(amount).toFixed(2),
+        order_amount: amount,
         order_currency: "INR",
+        order_id: orderId,
         customer_details: {
-          customer_id: customerPhone.replace(/\D/g, ''),
-          customer_name: customerName || "Customer",
-          customer_phone: customerPhone.replace(/\D/g, '').slice(-10),
+          customer_id: `cust_${Date.now()}`,
+          customer_name: customerName,
+          customer_phone: customerPhone,
         },
         order_meta: {
-          return_url: `${origin}/checkout/verify?order_id={order_id}`,
-        }
+          return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://denimx-luxury.vercel.app'}/checkout/verify?order_id={order_id}`,
+        },
       }),
     });
 
-    const data = await cfResponse.json();
+    const data = await response.json();
 
-    if (!cfResponse.ok) {
-      console.error("Cashfree API Failure:", data);
-      return NextResponse.json({ 
-        error: "Cashfree API Failure", 
-        message: data.message || "Unknown API Error",
-        code: data.code || "UNKNOWN_CODE"
-      }, { status: cfResponse.status });
+    if (!response.ok) {
+      console.error("Cashfree API Error:", data);
+      return NextResponse.json({ error: data.message || "Failed to create order" }, { status: response.status });
     }
+
+    // SAFE DATA ACCESS: Check if payments object exists
+    const paymentUrl = data.payments?.url || `https://payments.cashfree.com/order/#${data.payment_session_id}`;
 
     return NextResponse.json({ 
       payment_session_id: data.payment_session_id, 
       order_id: data.order_id,
-      payment_url: data.payments.url
+      payment_url: paymentUrl
     });
 
   } catch (error: any) {
-    console.error("Critical Backend Error:", error);
+    console.error("Create Session Fatal Error:", error);
     return NextResponse.json({ error: "Internal Server Error", details: error.message }, { status: 500 });
   }
 }
