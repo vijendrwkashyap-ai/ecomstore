@@ -116,15 +116,22 @@ export default function CheckoutPage() {
       const sessionData = await sessionRes.json();
       if (!sessionRes.ok) throw new Error(sessionData.error || "Session failed");
 
-      const cashfree: any = await loadCashfree();
-      if (!cashfree) throw new Error("Cashfree failed to load");
+      // 2. Initialize Cashfree SDK (Loaded from CDN)
+      const CashfreeObj: any = await loadCashfree();
+      if (!CashfreeObj) throw new Error("Cashfree SDK failed to load.");
+      
+      const cashfree = new CashfreeObj({
+        mode: "production", // change to "sandbox" for testing
+      });
 
+      // Store form data for recovery on verification page
       sessionStorage.setItem('pending_order_data', JSON.stringify({
         formData,
         cart,
         finalTotal
       }));
 
+      // 3. Start Checkout
       await cashfree.checkout({
         paymentSessionId: sessionData.payment_session_id,
         returnUrl: `${window.location.origin}/checkout/verify?order_id=${sessionData.order_id}`,
