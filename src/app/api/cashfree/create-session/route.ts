@@ -35,12 +35,18 @@ export async function POST(req: Request) {
       }),
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      console.error("Cashfree API Error:", data);
-      return NextResponse.json({ error: data.message || "Failed to create order" }, { status: response.status });
+      const errorBody = await response.text();
+      console.error("DEBUG: Cashfree Raw Error:", errorBody);
+      return NextResponse.json({ 
+        error: "Cashfree API Failure", 
+        details: errorBody,
+        status: response.status 
+      }, { status: response.status });
     }
+
+    const data = await response.json();
+    console.log("DEBUG: Cashfree Session Created:", data.order_id);
 
     // SAFE DATA ACCESS: Check if payments object exists
     const paymentUrl = data.payments?.url || `https://payments.cashfree.com/order/#${data.payment_session_id}`;
