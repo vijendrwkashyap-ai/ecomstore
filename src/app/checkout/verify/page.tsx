@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
 
-export default function VerifyPaymentPage() {
+// Sub-component to use SearchParams within Suspense
+function VerifyPaymentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { clearCart } = useCart();
@@ -24,7 +25,6 @@ export default function VerifyPaymentPage() {
       try {
         setErrorMessage(""); 
         
-        // 1. Verify Payment status with Cashfree API
         const statusRes = await fetch(`/api/cashfree/get-status?order_id=${orderId}`);
         const statusData = await statusRes.json();
 
@@ -33,14 +33,11 @@ export default function VerifyPaymentPage() {
         }
 
         const storedOrderData = sessionStorage.getItem('pending_order_data');
-        if (!storedOrderData) throw new Error("Order data not found in session.");
+        if (!storedOrderData) throw new Error("Order data not found.");
 
         const { formData, cart, finalTotal } = JSON.parse(storedOrderData);
-
-        // 2. Clear Session Storage
         sessionStorage.removeItem('pending_order_data');
 
-        // 3. Create Order in Shopify
         const shopifyRes = await fetch("/api/create-shopify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -59,7 +56,6 @@ export default function VerifyPaymentPage() {
            throw new Error(shopifyData.details || "Failed to create Shopify order");
         }
 
-        // 4. Finalize
         clearCart();
         setShopifyOrderUrl(shopifyData.order_status_url);
         setStatus("success");
@@ -74,8 +70,7 @@ export default function VerifyPaymentPage() {
   }, [orderId, router, clearCart]);
 
   return (
-    <main className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center font-sans">
-      <div className="max-w-[500px] w-full">
+    <div className="max-w-[500px] w-full">
         {status === "verifying" && (
           <>
             <div className="w-16 h-16 border-4 border-zinc-100 border-t-black rounded-full animate-spin mx-auto mb-8" />
@@ -128,7 +123,7 @@ export default function VerifyPaymentPage() {
             </div>
             <h1 className="text-2xl font-black uppercase tracking-tighter text-black mb-4">Launch Aborted</h1>
             <p className="text-[10px] text-rose-400 font-bold uppercase tracking-[0.2em] mb-10 leading-relaxed bg-rose-50/50 p-4 rounded-xl border border-rose-100/50">
-              CRITICAL ERROR: {errorMessage}
+              {errorMessage}
             </p>
             <button 
                onClick={() => router.push("/checkout")}
@@ -138,7 +133,22 @@ export default function VerifyPaymentPage() {
             </button>
           </>
         )}
-      </div>
+    </div>
+  );
+}
+
+// Main page component wrapped in Suspense for Prerendering fix
+export default function VerifyPaymentPage() {
+  return (
+    <main className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center font-sans">
+      <Suspense fallback={
+        <div className="flex flex-col items-center justify-center">
+          <div className="w-16 h-16 border-4 border-zinc-100 border-t-black rounded-full animate-spin mx-auto mb-8" />
+          <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">Initializing Terminal...</p>
+        </div>
+      }>
+        <VerifyPaymentContent />
+      </Suspense>
     </main>
   );
 }
