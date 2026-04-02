@@ -46,11 +46,13 @@ export async function POST(req: Request) {
     }
 
     const data = await response.json();
-    console.log("DEBUG: Cashfree Session Created:", data.order_id);
+    console.log("DEBUG FULL DATA:", JSON.stringify(data, null, 2));
 
-    // SAFE DATA ACCESS: Check if payments object exists
-    const paymentUrl = data.payments?.url || `https://payments.cashfree.com/order/#${data.payment_session_id}`;
-
+    // Official Hosted Page v3 Prod Format (Most Stable)
+    const paymentUrl = data.payments?.url || `https://payments.cashfree.com/v3/checkouts/${data.payment_session_id}`;
+    
+    console.log("DEBUG: Final Redirect URL:", paymentUrl);
+    
     return NextResponse.json({ 
       payment_session_id: data.payment_session_id, 
       order_id: data.order_id,
