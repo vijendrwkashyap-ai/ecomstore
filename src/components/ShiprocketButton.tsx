@@ -1,33 +1,40 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { useCart } from "@/context/CartContext";
-import { SHOPIFY_VARIANT_MAP } from "@/lib/shopify-variants";
-
-const SHOPIFY_DOMAIN = "denimcode.myshopify.com";
+import { useRouter } from "next/navigation";
 
 interface ShiprocketButtonProps {
   productId: string;
   quantity?: number;
   className?: string;
   text?: string;
+  product?: any;
+  selectedSize?: string;
 }
 
-export default function ShiprocketButton({ productId, quantity = 1, className = "", text = "Instant Checkout //" }: ShiprocketButtonProps) {
+export default function ShiprocketButton({ productId, quantity = 1, className = "", text = "BUY NOW", product, selectedSize }: ShiprocketButtonProps) {
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const { addToCart } = useCart();
 
-  const handleDirectBuy = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleBrandedBuy = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const vId = SHOPIFY_VARIANT_MAP[productId];
-      if (!vId) {
-        alert("Verification in progress. Please try again.");
-        setLoading(false);
-        return;
+      if (product) {
+        addToCart({ 
+          id: productId, 
+          title: product.title, 
+          price: product.price, 
+          size: selectedSize || "FREE", 
+          image: product.src, 
+          quantity: quantity 
+        });
       }
-      const encodedPayload = btoa(`${vId}:${quantity}`);
-      window.location.href = `https://${SHOPIFY_DOMAIN}/cart?headless_cart=${encodedPayload}`;
+      
+      // Navigate to our own custom high-converting checkout
+      router.push("/checkout");
     } catch (err) {
       setLoading(false);
     }
@@ -36,15 +43,11 @@ export default function ShiprocketButton({ productId, quantity = 1, className = 
   return (
     <button
       type="button"
-      className={`relative py-6 px-12 bg-black text-white rounded-full text-[10px] font-black tracking-[1.2em] uppercase transition-all duration-700 hover:bg-zinc-800 flex items-center justify-between group overflow-hidden ${className}`}
-      onClick={handleDirectBuy}
+      className={`relative w-full py-4 text-sm font-bold tracking-widest uppercase bg-black text-white hover:bg-zinc-900 transition-colors duration-300 flex items-center justify-center gap-3 ${className}`}
+      onClick={handleBrandedBuy}
       disabled={loading}
     >
-      <span className="relative z-10">{loading ? "Redirecting //" : text}</span>
-      {!loading && (
-        <div className="w-8 h-[1px] bg-white/20 group-hover:w-16 transition-all duration-700 relative z-10" />
-      )}
-      <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+      <span className="flex-1 text-center font-bold tracking-[0.2em]">{loading ? "INITIALIZING SECURE..." : text}</span>
     </button>
   );
 }

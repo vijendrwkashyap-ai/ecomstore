@@ -44,7 +44,7 @@ export default function ProductPageClient({ product, relatedProducts }: ProductP
   return (
     <main className="w-full bg-white relative pb-32 md:pb-20 font-sans selection:bg-black selection:text-white">
       
-      {/* Global Header Clearance (Both Mobile & Desktop) */}
+      {/* Global Header Clearance */}
       <div className="w-full h-20 md:h-28 bg-white" />
 
       {/* Desktop Breadcrumbs & Hierarchy */}
@@ -66,16 +66,23 @@ export default function ProductPageClient({ product, relatedProducts }: ProductP
             ======================================================== */}
         <div className="w-full lg:w-[50%] xl:w-[55%] lg:sticky lg:top-28 flex flex-col group relative">
            
-           {/* Mobile Breadcrumb (Floating overlay) */}
-           <div className="absolute top-4 left-6 z-20 md:hidden flex items-center gap-2 text-[9px] uppercase tracking-[0.15em] font-bold text-black bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-sm shadow-sm border border-black/5">
+           {/* Mobile Breadcrumb */}
+           <div className="absolute top-4 left-6 z-10 md:hidden flex items-center gap-2 text-[9px] uppercase tracking-[0.15em] font-bold text-black bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-sm shadow-sm border border-black/5">
              <Link href="/">HQ</Link>
              <span className="text-black/30">/</span>
              <Link href="/shop">Archive</Link>
            </div>
 
+           {/* Editorial Image Pagination */}
+           <div className="absolute top-4 right-6 md:top-6 md:right-6 z-10 flex text-[9px] uppercase tracking-[0.2em] font-bold text-black bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-sm shadow-sm border border-black/5">
+              <span>{String(currentSlide + 1).padStart(2, '0')}</span>
+              <span className="mx-1 text-black/30">/</span>
+              <span>{String(sliderImages.length).padStart(2, '0')}</span>
+           </div>
+
            {/* Pure Native Snap Slider */}
            <div 
-             className="flex w-full overflow-x-auto snap-x snap-mandatory hide-scroll md:rounded-[2px] bg-zinc-50 border-0 md:border border-black/5"
+             className="flex w-full overflow-x-auto snap-x snap-mandatory hide-scroll md:rounded-[2px] bg-zinc-50 border border-black/5"
              onScroll={(e) => {
                const slideWidth = e.currentTarget.clientWidth;
                const index = Math.round(e.currentTarget.scrollLeft / slideWidth);
@@ -83,23 +90,14 @@ export default function ProductPageClient({ product, relatedProducts }: ProductP
              }}
            >
              {sliderImages.map((img, idx) => (
-                <div key={idx} className="min-w-full h-[65vh] max-h-[600px] md:max-h-none md:h-[65vh] xl:h-[680px] snap-center relative shrink-0">
+                <div key={idx} className="min-w-full h-[60vh] max-h-[550px] md:max-h-none md:h-[65vh] xl:h-[680px] snap-center relative shrink-0">
                    <img src={img} alt={`${product.title} - angle ${idx + 1}`} className="w-full h-full object-cover object-[center_top] mix-blend-multiply" loading={idx === 0 ? "eager" : "lazy"} />
                 </div>
              ))}
            </div>
 
-           {/* Flagship App "Story-Style" Progress Indicators (Mobile) */}
-           <div className="absolute bottom-16 left-0 w-full flex justify-between gap-1.5 px-6 z-20 md:hidden pointer-events-none">
-              {sliderImages.map((_, idx) => (
-                 <div key={idx} className="flex-1 h-0.5 bg-black/15 overflow-hidden rounded-full">
-                    <div className={`h-full bg-black shadow-sm transition-all duration-500 ease-out ${currentSlide >= idx ? 'w-full' : 'w-0'}`} />
-                 </div>
-              ))}
-           </div>
-
-           {/* Minimal Dots Array (Desktop Only) */}
-           <div className="hidden md:flex justify-center gap-1.5 mt-6 z-10">
+           {/* Minimal Dots Array */}
+           <div className="flex justify-center gap-1.5 mt-4 absolute md:relative bottom-6 w-full md:bottom-auto md:mt-6 z-10">
               {sliderImages.map((_, idx) => (
                  <button 
                    aria-label={`Go to slide ${idx + 1}`}
@@ -113,13 +111,10 @@ export default function ProductPageClient({ product, relatedProducts }: ProductP
         {/* ========================================================
             RIGHT COLUMN: INFORMATION DENSITY & AUTHORITY
             ======================================================== */}
-        <div className="w-full lg:w-[50%] xl:w-[45%] flex flex-col px-6 md:px-0 lg:py-0 info-content relative z-20 bg-white -mt-10 lg:mt-0 rounded-t-[2.5rem] lg:rounded-none shadow-[0_-20px_40px_rgba(0,0,0,0.06)] lg:shadow-none pt-10 pb-8 lg:pt-0">
-           
-           {/* iOS Style Pull Tab Indicator (Mobile Only) */}
-           <div className="w-12 h-1.5 bg-zinc-200 rounded-full mx-auto md:hidden absolute top-4 left-1/2 -translate-x-1/2" />
+        <div className="w-full lg:w-[50%] xl:w-[45%] flex flex-col px-6 md:px-0 py-8 lg:py-0 info-content">
            
            {/* 1. METADATA HEADER */}
-           <div className="flex justify-between items-start pb-5 border-b border-black/10 anim-item mt-2 lg:mt-0">
+           <div className="flex justify-between items-start pb-5 border-b border-black/10 anim-item">
               <div className="flex flex-col gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
                 <span className="text-black">DenimX Authority Division</span>
                 <span>Serial: DNMX-014-{product.id}-BLK</span>
@@ -148,18 +143,12 @@ export default function ProductPageClient({ product, relatedProducts }: ProductP
                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.15em]">Inclusive of all taxes</span>
                   </div>
               </div>
-              
-              {/* PREPAID PRIVILEGE BLOCK */}
-              <div className="mt-6 p-4 bg-zinc-50 border border-black/5 rounded-[4px] shadow-sm flex items-start gap-4">
-                 <div className="mt-1 flex items-center justify-center w-8 h-8 bg-black rounded-full shrink-0">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+              <div className="flex flex-col gap-1.5 mt-2 px-4 py-3.5 bg-zinc-50 border border-black/5 rounded-[4px] shadow-sm">
+                 <div className="flex items-center gap-2 text-[11px] font-extrabold text-black uppercase tracking-widest">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                    Pay in 3 interest-free installments
                  </div>
-                 <div className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-extrabold text-black uppercase tracking-[0.2em]">Prepaid Privilege</span>
-                    <p className="text-[11px] text-zinc-500 font-semibold leading-relaxed tracking-wide">
-                       Secure your order via UPI or Cards to unlock <span className="text-black font-extrabold">Complimentary Priority Transit</span> and an instant <span className="text-black font-extrabold">₹100 courtesy waiver</span> at checkout.
-                    </p>
-                 </div>
+                 <span className="text-[11px] text-zinc-500 font-medium pl-[22px]">Available with valid domestic credit cards at checkout. <span className="underline cursor-pointer hover:text-black decoration-zinc-300 hover:decoration-black underline-offset-4 transition-colors">Learn More</span></span>
               </div>
            </div>
 
@@ -245,8 +234,6 @@ export default function ProductPageClient({ product, relatedProducts }: ProductP
                    productId={product.id}
                    quantity={quantity}
                    text="BUY NOW"
-                   product={product}
-                   selectedSize={selectedSize}
                    className="h-full !py-0 w-full rounded-[2px] shadow-sm hover:shadow-md bg-black hover:bg-zinc-900 border border-black"
                  />
               </div>
@@ -322,61 +309,6 @@ export default function ProductPageClient({ product, relatedProducts }: ProductP
 
         </div>
       </div>
-
-      {/* ========================================================
-          EDITORIAL CAMPAIGN / ANATOMY BLOCK (NEW EXPANDED CONTENT)
-          ======================================================== */}
-      <section className="w-full bg-black text-white mt-8 md:mt-24 overflow-hidden">
-         <div className="w-full flex flex-col lg:flex-row items-stretch">
-            {/* Immersive Text Half */}
-            <div className="w-full lg:w-1/2 px-8 md:px-20 lg:p-32 flex flex-col gap-8 py-20 lg:py-0 justify-center">
-               <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-zinc-500">Anatomy of the Garment</span>
-               <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tighter leading-[1.05] uppercase">
-                  Engineered<br/><span className="text-zinc-500">For Authority.</span>
-               </h2>
-               <div className="w-12 h-[2px] bg-white mt-2" />
-               <p className="text-sm md:text-base leading-relaxed text-zinc-400 font-medium tracking-wide mt-2 max-w-lg">
-                  Every structural millimeter of this piece has been subjected to extreme stress testing over a 48-hour cycle. The 14.5oz Kuroki denim is shuttle-loomed in Okayama, maintaining the raw organic inconsistencies of the vintage yarn. 
-               </p>
-               <div className="grid grid-cols-2 gap-8 mt-6">
-                  <div className="flex flex-col gap-2">
-                     <span className="text-3xl font-bold tracking-tighter text-white">48h</span>
-                     <span className="text-[9px] font-bold tracking-[0.2em] uppercase text-zinc-500">Mechanical Wash Cycle</span>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                     <span className="text-3xl font-bold tracking-tighter text-white">100%</span>
-                     <span className="text-[9px] font-bold tracking-[0.2em] uppercase text-zinc-500">Custom Zinc Hardware</span>
-                  </div>
-               </div>
-            </div>
-            {/* Parallax Image Half */}
-            <div className="w-full lg:w-1/2 h-[50vh] lg:h-auto lg:min-h-[700px] relative overflow-hidden group">
-               <img src={sliderImages[sliderImages.length > 1 ? 1 : 0]} alt="Texture detail" className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-[5s] ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:scale-110 opacity-70 mix-blend-luminosity grayscale" loading="lazy" />
-               <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black lg:hidden" />
-               <div className="absolute inset-0 border-[1px] border-white/10 m-8 pointer-events-none mix-blend-overlay hidden md:block" />
-            </div>
-         </div>
-      </section>
-
-      {/* ========================================================
-          COMPOSITION & MILL SPECS (EXTREME DETAIL GRID)
-          ======================================================== */}
-      <section className="w-full max-w-[1440px] mx-auto px-6 md:px-12 py-20 md:py-32 border-b border-zinc-200">
-         <div className="flex flex-col md:flex-row gap-16 md:gap-8 justify-between">
-            <div className="flex-1 flex flex-col gap-5 border-l-[3px] border-black pl-5">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-black">01. Textile Architecture</h3>
-               <p className="text-[13px] text-zinc-500 leading-relaxed font-medium">Sourced exclusively from the Kuroki Mill in Japan. The warp yarn is rope-dyed in pure indigo multiple times to guarantee a profound, evolving fade architecture over years of terminal usage.</p>
-            </div>
-            <div className="flex-1 flex flex-col gap-5 border-l-[3px] border-black pl-5">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-black">02. Structural Integrity</h3>
-               <p className="text-[13px] text-zinc-500 leading-relaxed font-medium">Assembled using heavy-gauge poly-core thread. Essential pressure points are reinforced with hidden custom-stamped copper rivets and bar-tacks to eliminate blowout risk entirely.</p>
-            </div>
-            <div className="flex-1 flex flex-col gap-5 border-l-[3px] border-black pl-5">
-               <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-black">03. Traceable Provenance</h3>
-               <p className="text-[13px] text-zinc-500 leading-relaxed font-medium">Each piece ships with a cryptographic NFC authenticity tag woven directly into the internal waistband matrix, verifiable instantaneously via the DenimX app ecosystem.</p>
-            </div>
-         </div>
-      </section>
 
       {/* ========================================================
           RELATED PRODUCTS (ARCHIVE EXTENSION)
