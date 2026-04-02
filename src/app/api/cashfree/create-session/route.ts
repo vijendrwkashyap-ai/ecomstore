@@ -65,7 +65,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
       payment_session_id: data.payment_session_id, 
-      order_id: data.order_id 
+      order_id: data.order_id,
+      payment_url: data.payments.url
     });
 
   } catch (error: any) {

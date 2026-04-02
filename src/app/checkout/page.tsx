@@ -109,12 +109,13 @@ export default function CheckoutPage() {
         finalTotal
       }));
 
-      // REDIRECT METHOD (HOSTED CHECKOUT) - No Whitelisting Required
-      // Constructing the Cashfree Hosted checkout URL manually
-      const hostedUrl = `https://payments.cashfree.com/order/#${sessionData.payment_session_id}`;
-      
-      // Navigate to Hosted Link
-      window.location.href = hostedUrl;
+      // 3. Official Redirect (Hosted Checkout)
+      if (sessionData.payment_url) {
+        window.location.href = sessionData.payment_url;
+      } else {
+        // Fallback (just in case)
+        window.location.href = `https://payments.cashfree.com/order/#${sessionData.payment_session_id}`;
+      }
 
     } catch (err: any) {
       console.error(err);
