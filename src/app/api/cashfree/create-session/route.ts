@@ -29,7 +29,8 @@ export async function POST(req: Request) {
           customer_phone: customerPhone,
         },
         order_meta: {
-          return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://denimx-luxury.vercel.app'}/checkout/verify?order_id={order_id}`,
+          // Cashfree PROD strictly requires HTTPS. Using vercel domain as fallback.
+          return_url: `https://denimx-luxury.vercel.app/checkout/verify?order_id={order_id}`,
         },
       }),
     });
