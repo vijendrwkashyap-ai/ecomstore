@@ -24,6 +24,9 @@
         const url = window.location.href;
         const query = new URLSearchParams(window.location.search);
         
+        // Final Production Target
+        const PROD_URL = "https://denimx-luxury.vercel.app";
+
         // Detect ANY variation of Order ID from Cashfree
         const sID = query.get('cashfree_session_id');
         const oID = query.get('order_id') || query.get('orderId') || query.get('cf_id');
@@ -42,18 +45,17 @@
             }, 500);
         }
 
-        // 2. RETURN TO LOCALHOST (THE FIX)
-        // If order_id exists, we MUST leave Shopify immediately
+        // 2. RETURN TO FRONTEND (THE REPAIRED NODE)
         if (oID || url.includes('order_id=') || url.includes('orderId=')) {
             document.getElementById('bridge-ui').style.display = 'flex';
             document.getElementById('main-store-content').style.display = 'none';
             
             const finalID = oID || url.split('order_id=')[1]?.split('&')[0];
             
-            console.log("SUCCESS_DETECTED: Bridging back to Localhost with ID: " + finalID);
+            console.log("SUCCESS_DETECTED: Bridging back with ID: " + finalID);
             
-            // RELENTLESS REDIRECT
-            window.location.replace("http://localhost:3000/order-success?order_id=" + finalID);
+            // RELENTLESS REDIRECT TO PRODUCTION
+            window.location.replace(PROD_URL + "/order-success?order_id=" + finalID);
         }
     })();
     </script>
