@@ -1,74 +1,77 @@
 "use client";
-import React, { useEffect, useRef } from "react";
-import Link from "next/link";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import React from 'react';
+import Link from 'next/link';
 
-gsap.registerPlugin(ScrollTrigger);
+const Footer = () => {
+    return (
+        <footer className="bg-white text-black py-20 px-6 md:px-20 border-t border-black/5 font-sans relative z-10">
+            <div className="max-w-[1800px] mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-16 md:gap-8">
+                    {/* Brand Info */}
+                    <div className="space-y-8">
+                        <div className="space-y-2">
+                            <h2 className="text-2xl font-black uppercase tracking-tighter leading-none">LUVRA Archive</h2>
+                            <p className="text-[10px] font-bold text-zinc-400 tracking-[0.3em] uppercase">Sector: Radha Enterprises</p>
+                        </div>
+                        <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-widest leading-relaxed max-w-[280px]">
+                            Engineering architectural luxury denim for the modern vanguard. Archival research since MMXXIV.
+                        </p>
+                    </div>
 
-export default function Footer() {
-  const containerRef = useRef<HTMLElement>(null);
+                    {/* Navigation */}
+                    <div className="space-y-8">
+                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] border-b border-black/5 pb-4 w-fit">Navigation Matrix</h3>
+                        <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+                            <li><Link href="/" className="hover:text-black transition-colors">Home Archive</Link></li>
+                            <li><Link href="/mens-archive" className="hover:text-black transition-colors">Mens Sector</Link></li>
+                            <li><Link href="/womens-archive" className="hover:text-black transition-colors">Womens Sector</Link></li>
+                            <li><Link href="/archive" className="hover:text-black transition-colors">All Pieces</Link></li>
+                        </ul>
+                    </div>
 
-  useEffect(() => {
-    const ctx = gsap.context(() => {
-       gsap.fromTo('.footer-reveal', 
-         { y: 100, opacity: 0 }, 
-         { y: 0, opacity: 1, duration: 1, stagger: 0.1, ease: "power3.out", 
-           scrollTrigger: { trigger: containerRef.current, start: "top 80%" } 
-         });
-    }, containerRef);
-    return () => ctx.revert();
-  }, []);
+                    {/* Support & Legal (Crucial for Whitelisting) */}
+                    <div className="space-y-8">
+                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] border-b border-black/5 pb-4 w-fit">Support Protocol</h3>
+                        <ul className="space-y-4 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+                            <li><Link href="/contact" className="hover:text-black transition-colors">Contact Verification</Link></li>
+                            <li><Link href="/shipping-policy" className="hover:text-black transition-colors">Shipping Logistics</Link></li>
+                            <li><Link href="/refund-policy" className="hover:text-black transition-colors">Refund & Return Policy</Link></li>
+                            <li><Link href="/privacy-policy" className="hover:text-black transition-colors">Privacy Encryption</Link></li>
+                            <li><Link href="/terms" className="hover:text-black transition-colors">Terms of Service</Link></li>
+                        </ul>
+                    </div>
 
-  return (
-    <footer ref={containerRef} className="w-full bg-[#111] text-[#F9F9F9] pt-40 pb-10 px-6 md:px-20 flex flex-col gap-20 overflow-hidden">
-      
-      {/* Newsletter & Links */}
-      <div className="flex flex-col md:flex-row justify-between w-full max-w-[95vw] mx-auto gap-20">
-         
-         <div className="w-full md:w-1/2 flex flex-col gap-10">
-            <h2 className="title-primary text-background footer-reveal" style={{ fontSize: 'clamp(2rem, 5vw, 5rem)' }}>Join The<br/>Vanguard</h2>
-            <div className="flex w-full max-w-md border-b flex-grow-0 border-background/30 pb-4 footer-reveal">
-              <input type="email" placeholder="ENTER EMAIL ADDRESS" className="bg-transparent w-full text-sm font-bold tracking-widest uppercase outline-none placeholder:text-background/30 text-background" />
-              <button className="text-xs font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">→</button>
+                    {/* Newsletter / Contact */}
+                    <div className="space-y-8">
+                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] border-b border-black/5 pb-4 w-fit">Communication Link</h3>
+                        <div className="space-y-4">
+                            <p className="text-[10px] font-bold text-zinc-400 tracking-[0.1em] leading-relaxed uppercase">
+                                +91 9123456789<br/>RADHA ENTERPRISES (HQ NEW DELHI)
+                            </p>
+                            <div className="flex gap-6 pt-4 grayscale opacity-40">
+                                <span className="text-[10px] font-black border border-black/10 px-3 py-1">TW</span>
+                                <span className="text-[10px] font-black border border-black/10 px-3 py-1">IG</span>
+                                <span className="text-[10px] font-black border border-black/10 px-3 py-1">FB</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom Bar */}
+                <div className="mt-32 pt-10 border-t border-black/5 flex flex-col md:row items-center justify-between gap-8 md:gap-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.4em] opacity-30 text-center">
+                        © MMXXIV LUVRA ARCHIVE • OPERATED BY RADHA ENTERPRISES • ALL RIGHTS RESERVED
+                    </p>
+                    <div className="flex gap-8 items-center opacity-20 grayscale transition-all hover:opacity-40">
+                        <img src="https://img.icons8.com/color/48/000000/visa.png" className="h-4" />
+                        <img src="https://img.icons8.com/color/48/000000/mastercard.png" className="h-4" />
+                        <img src="https://img.icons8.com/color/48/000000/upi.png" className="h-4" />
+                        <img src="https://img.icons8.com/color/48/000000/rupay.png" className="h-4" />
+                    </div>
+                </div>
             </div>
-            <p className="text-xs text-background/50 font-medium tracking-widest uppercase footer-reveal max-w-sm">
-              Subscribe to unlock early access to the 2026 architectural drops and exclusive events.
-            </p>
-         </div>
+        </footer>
+    );
+};
 
-         <div className="w-full md:w-1/2 flex gap-10 md:gap-32 justify-start md:justify-end footer-reveal">
-            <div className="flex flex-col gap-6">
-              <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-background/50 mb-4">Explore</span>
-              <Link href="/shop" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">Shop Mens</Link>
-              <Link href="/shop" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">Shop Womens</Link>
-              <Link href="/about" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">The Story</Link>
-              <Link href="/blog" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">Journal</Link>
-            </div>
-            <div className="flex flex-col gap-6">
-              <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-background/50 mb-4">Support</span>
-              <Link href="#" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">Shipping</Link>
-              <Link href="#" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">Returns</Link>
-              <Link href="#" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">Contact</Link>
-              <Link href="#" className="text-sm font-bold uppercase tracking-[0.2em] hover:text-white/50 transition-colors cursor-none">Size Guide</Link>
-            </div>
-         </div>
-
-      </div>
-
-      {/* Massive Base Identity */}
-      <div className="w-full flex justify-center items-center mt-20 border-t border-background/10 pt-10 footer-reveal">
-         <h1 className="text-[15vw] leading-[0.75] font-bold tracking-tighter uppercase text-center text-background opacity-[0.98]">
-           DENIMX
-         </h1>
-      </div>
-
-      {/* Copyright */}
-      <div className="flex flex-col md:flex-row justify-between w-full mt-10 text-[10px] sm:text-xs font-bold tracking-widest uppercase text-background/30 footer-reveal px-2">
-         <span>© 2026 DenimX — The Universal Standard.</span>
-         <span className="mt-4 md:mt-0">Privacy / Terms of Service</span>
-      </div>
-
-    </footer>
-  );
-}
+export default Footer;

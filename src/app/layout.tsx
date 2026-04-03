@@ -1,14 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import SmoothScroll from "@/components/SmoothScroll";
-import CustomCursor from "@/components/CustomCursor";
-import Navigation from "@/components/Navigation";
-import Footer from "@/components/Footer";
-import PageLoader from "@/components/PageLoader";
 import { CartProvider } from "@/context/CartContext";
-import CartDrawer from "@/components/CartDrawer";
-import FastrrInterceptor from "@/components/FastrrInterceptor";
+import ClientLayoutWrapper from "@/components/ClientLayoutWrapper";
 
 const inter = Inter({ subsets: ["latin"], weight: ["300", "400", "500", "600", "700", "800"] });
 
@@ -39,9 +33,6 @@ export const metadata: Metadata = {
   }
 };
 
-
-import Script from "next/script";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,17 +42,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
         <CartProvider>
-          <PageLoader />
-          <CartDrawer />
-          <SmoothScroll>
-            <CustomCursor />
-            <Navigation />
-            {children}
-            <Footer />
-          </SmoothScroll>
+          <ClientLayoutWrapper>{children}</ClientLayoutWrapper>
         </CartProvider>
       </body>
     </html>
   );
 }
-

@@ -20,6 +20,8 @@ type CartContextType = {
   cartTotal: number;
   cartCount: number;
   clearCart: () => void;
+  // Shiprocket Integrated Handler
+  openSr: (url: string) => void;
 };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -28,7 +30,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Load cart from local storage on mount
   useEffect(() => {
     const savedCart = localStorage.getItem('denimx_cart');
     if (savedCart) {
@@ -40,7 +41,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Save cart to local storage on change
   useEffect(() => {
     localStorage.setItem('denimx_cart', JSON.stringify(cart));
   }, [cart]);
@@ -78,6 +78,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const toggleCart = () => setIsCartOpen(!isCartOpen);
 
+  // ULTIMATE SHIPROCKET BYPASS HANDLER
+  const openSr = (url: string) => {
+     const width = 480;
+     const height = 750;
+     const left = (window.screen.width / 2) - (width / 2);
+     const top = (window.screen.height / 2) - (height / 2);
+
+     const popup = window.open(
+        url,
+        "ShiprocketCheckout",
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=no,resizable=no,status=no,location=no,toolbar=no,menubar=no`
+     );
+
+     if (popup) {
+        popup.focus();
+     } else {
+        // Fallback for popup blockers
+        window.location.href = url;
+     }
+  };
+
   const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
   const cartCount = cart.reduce((count, item) => count + item.quantity, 0);
 
@@ -91,7 +112,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isCartOpen, 
       cartTotal, 
       cartCount,
-      clearCart
+      clearCart,
+      openSr
     }}>
       {children}
     </CartContext.Provider>

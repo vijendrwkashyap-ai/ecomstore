@@ -1,215 +1,228 @@
 "use client";
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useCart } from "@/context/CartContext";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 export default function CheckoutPage() {
-  const { cart, cartTotal, clearCart } = useCart();
-  const router = useRouter();
+  const { cart, cartTotal } = useCart();
+  const [formData, setFormData] = useState({ firstName: "", phone: "", pinCode: "", address: "" });
   const [loading, setLoading] = useState(false);
-  const [fetchingPincode, setFetchingPincode] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(765);
   
-  const [formData, setFormData] = useState({
-    fullName: "",
-    phone: "",
-    address: "",
-    landmark: "",
-    city: "",
-    state: "",
-    pincode: "",
-  });
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
 
-  const finalTotal = cartTotal;
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleAutoFill = () => {
-    if ("geolocation" in navigator) {
-      setLocating(true);
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`);
-          const data = await res.json();
-          const addr = data.address;
-          setFormData(prev => ({
-            ...prev,
-            address: `${addr.house_number || addr.building || ''} ${addr.pedestrian || addr.road || addr.suburb || ''}`.trim() || prev.address,
-            city: addr.city || addr.town || addr.village || addr.district || '',
-            state: addr.state || '',
-            pincode: addr.postcode ? addr.postcode.replace(/\s/g, '') : prev.pincode
-          }));
-        } catch (e) {
-          console.error("GPS Error", e);
-        } finally {
-          setLocating(false);
-        }
-      }, () => setLocating(false), { enableHighAccuracy: true });
-    }
+  // MAP LOGIC
+  const initMap = (lat: number, lon: number) => {
+    if (typeof window === "undefined" || !(window as any).L) return;
+    const L = (window as any).L;
+    if (mapRef.current) mapRef.current.remove();
+    const map = L.map('checkout-map-portal').setView([lat, lon], 17);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+    markerRef.current = marker;
+    map.on('move', () => { marker.setLatLng(map.getCenter()); });
+    mapRef.current = map;
   };
 
-  const handlePincodeChange = async (val: string) => {
-    setFormData(prev => ({ ...prev, pincode: val }));
-    if (val.length === 6) {
-      setFetchingPincode(true);
-      try {
-        const res = await fetch(`https://api.postalpincode.in/pincode/${val}`);
-        const data = await res.json();
-        if (data[0].Status === "Success") {
-          const postOffice = data[0].PostOffice[0];
-          setFormData(prev => ({ ...prev, city: postOffice.District, state: postOffice.State }));
-        }
-      } catch (e) {
-        console.error("Pincode error", e);
-      } finally {
-        setFetchingPincode(false);
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Ensure 10-digit Indian phone number
-    const phoneRegex = /^[6-9]\d{9}$/;
-    if (!phoneRegex.test(formData.phone)) {
-      alert("Please enter a valid 10-digit phone number.");
-      return;
-    }
-    
-    setLoading(true);
-
-    try {
-      const orderId = `denimx_${Date.now()}`;
-      const sessionRes = await fetch("/api/cashfree/create-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: finalTotal,
-          customerName: formData.fullName,
-          customerPhone: formData.phone,
-          orderId: orderId
-        }),
-      });
-
-      const sessionData = await sessionRes.json();
-      if (!sessionRes.ok) throw new Error(sessionData.error || "Session failed");
-
-      // Store form data for recovery on verification page
-      sessionStorage.setItem('pending_order_data', JSON.stringify({
-        formData,
-        cart,
-        finalTotal
-      }));
-
-      // 3. Official Redirect (Hosted Checkout)
-      if (sessionData.payment_url) {
-        window.location.href = sessionData.payment_url;
-      } else {
-        // Fallback (just in case)
-        window.location.href = `https://payments.cashfree.com/order/#${sessionData.payment_session_id}`;
-      }
-
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message);
-      setLoading(false);
-    }
-  };
-
-  if (cart.length === 0) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
-        <h2 className="text-xl font-bold mb-4">Empty selection</h2>
-        <Link href="/shop" className="text-sm font-semibold border-b border-black pb-1 hover:text-zinc-600 transition-colors">Return To Shop</Link>
-      </div>
+  const openMapPicker = () => {
+    setShowMap(true);
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setTimeout(() => initMap(pos.coords.latitude, pos.coords.longitude), 200); setLocating(false); },
+      () => { setTimeout(() => initMap(28.6139, 77.2090), 200); setLocating(false); },
+      { enableHighAccuracy: true }
     );
-  }
+  };
+
+  const confirmMapAddress = async () => {
+    if (!markerRef.current) return;
+    const { lat, lng } = markerRef.current.getLatLng();
+    setLocating(true);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+      const data = await response.json();
+      if (data.display_name) {
+        setFormData(prev => ({ 
+           ...prev, 
+           address: data.display_name,
+           pinCode: data.address.postcode || prev.pinCode
+        }));
+        setShowMap(false);
+      }
+    } catch (e) { alert("Address could not be fetched. Please enter manually."); }
+    finally { setLocating(false); }
+  };
+
+  const handlePayment = async () => {
+    if (!formData.phone || !formData.address || !formData.firstName || !formData.pinCode) {
+        alert("Please fill all required delivery details.");
+        return;
+    }
+    setLoading(true);
+    console.log("PAYMENT_INITIATED: Starting Cashfree Link Generation...");
+    
+    try {
+        const res = await fetch('/api/checkout/cashfree', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                amount: cartTotal, 
+                customer: { email: "guest@luvra-studios.com", phone: formData.phone, name: formData.firstName } 
+            })
+        });
+        
+        const data = await res.json();
+        console.log("CASHFREE_RESPONSE: ", data);
+
+        if (data.session_id) {
+             console.log("SESSION_VERIFIED: Storing Meta & Redirecting...");
+             localStorage.setItem('last_checkout_customer', JSON.stringify(formData));
+             
+             const bridgeUrl = `https://denimcode.myshopify.com/?cashfree_session_id=${data.session_id}&env=${data.environment || 'production'}`;
+             console.log("TARGET_REDIRECT: ", bridgeUrl);
+             
+             window.location.href = bridgeUrl;
+        } else {
+             console.error("SESSION_FAILED: No session_id returned from API.");
+             alert("Cashfree Protocol Error: " + (data.error || "Unknown Response Structure"));
+        }
+    } catch (err: any) { 
+        console.error("NETWORK_CRITICAL_ERROR: ", err);
+        alert("Connectivity Interrupted: " + err.message); 
+    }
+    finally { setLoading(false); }
+  };
+
+  if (cart.length === 0) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-2xl">Bag is Empty</div>;
 
   return (
-    <main className="min-h-screen bg-white text-zinc-900 font-sans pt-24 pb-16">
-      <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-10">
-        <div className="lg:col-span-7">
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight mb-1">Shipping & Checkout</h1>
-              <div className="flex items-center gap-2">
-                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                 <p className="text-[11px] text-emerald-700 font-bold uppercase tracking-wider">142 orders placed in last 24 hours</p>
-              </div>
-            </div>
-            <button type="button" onClick={handleAutoFill} disabled={locating} className="text-[10px] font-bold text-black bg-zinc-50 border border-zinc-200 px-5 py-2.5 rounded-full hover:bg-zinc-100 flex items-center justify-center gap-2 transition-all shadow-sm">
-              <svg className={`w-3.5 h-3.5 ${locating ? 'animate-spin' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-              {locating ? "Locating..." : "Auto-Fill My Location"}
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="md:col-span-2">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-1.5 block">Full Name</label>
-                  <input required type="text" value={formData.fullName} placeholder="Enter full name" onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))} className="w-full bg-zinc-50 border border-zinc-100 px-4 py-3.5 text-sm focus:ring-1 focus:ring-black rounded-xl outline-none" />
-               </div>
-               <div className="md:col-span-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-1.5 block">Phone Number</label>
-                  <input required type="tel" value={formData.phone} placeholder="10-digit number" onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))} className="w-full bg-zinc-50 border border-zinc-100 px-4 py-3.5 text-sm focus:ring-1 focus:ring-black rounded-xl outline-none" />
-               </div>
-               <div className="md:col-span-1">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-1.5 block">Pincode</label>
-                  <div className="relative">
-                    <input required type="text" maxLength={6} value={formData.pincode} placeholder="6-digit pincode" onChange={(e) => handlePincodeChange(e.target.value)} className="w-full bg-zinc-50 border border-zinc-100 px-4 py-3.5 text-sm focus:ring-1 focus:ring-black rounded-xl outline-none" />
-                    {fetchingPincode && <div className="absolute right-3 top-1/2 -translate-y-1/2"><div className="w-3 h-3 border-2 border-zinc-200 border-t-black rounded-full animate-spin" /></div>}
-                  </div>
-               </div>
-               <div className="md:col-span-2">
-                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-1.5 block">Detailed Address</label>
-                  <input required type="text" value={formData.address} onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))} placeholder="Flat No, Street, Landmark" className="w-full bg-zinc-50 border border-zinc-100 px-4 py-3.5 text-sm focus:ring-1 focus:ring-black rounded-xl outline-none" />
-               </div>
-               <div><label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-1.5 block">City</label>
-                  <input required type="text" value={formData.city} readOnly className="w-full bg-zinc-100 border border-zinc-100 px-4 py-3.5 text-sm rounded-xl text-zinc-500" />
-               </div>
-               <div><label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest ml-1 mb-1.5 block">State</label>
-                  <input required type="text" value={formData.state} readOnly className="w-full bg-zinc-100 border border-zinc-100 px-4 py-3.5 text-sm rounded-xl text-zinc-500" />
-               </div>
-            </div>
-            <button disabled={loading} type="submit" className={`w-full py-6 rounded-2xl text-[13px] font-bold uppercase tracking-[0.3em] transition-all ${loading ? 'bg-zinc-100 text-zinc-400' : 'bg-black text-white hover:bg-zinc-900 shadow-xl active:scale-[0.98]'}`}>
-              {loading ? "Redirecting to Gateway..." : "Secure Payment Gateway"}
-            </button>
-          </form>
+    <div className="min-h-screen bg-white pt-24 pb-20 px-4 md:px-6 font-sans text-black">
+      <div className="max-w-xl mx-auto space-y-12">
+        
+        {/* Progress Indication */}
+        <div className="flex justify-between items-center px-4">
+            <h1 className="text-3xl font-black uppercase tracking-tight">Delivery Details</h1>
+            <span className="bg-black text-white text-[10px] font-bold px-3 py-1 uppercase tracking-widest">Step 01 / 02</span>
         </div>
 
-        <div className="lg:col-span-5">
-           <div className="sticky top-32">
-             <div className="bg-zinc-50 rounded-[32px] p-8 border border-zinc-100 shadow-sm">
-                <h3 className="text-sm font-bold mb-8 flex items-center justify-between">Selected Items <span className="text-[10px] font-mono px-2 py-1 bg-white border border-zinc-200 rounded-full">{formatTime(timeLeft)}</span></h3>
-                <div className="space-y-6 mb-8 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                   {cart.map((item) => (
-                     <div key={`${item.id}-${item.size}`} className="flex gap-4 items-center">
-                        <div className="w-14 h-18 bg-white rounded-lg overflow-hidden border border-zinc-200 flex-shrink-0"><img src={item.image} alt="" className="w-full h-full object-cover" /></div>
-                        <div className="flex-1"><h4 className="text-xs font-bold leading-tight">{item.title}</h4><p className="text-[10px] text-zinc-400 mt-0.5 uppercase font-semibold">Size: {item.size} • Qty: {item.quantity}</p><p className="text-xs font-bold mt-1">₹{item.price * item.quantity}</p></div>
-                     </div>
-                   ))}
+        <div className="space-y-10">
+            {/* LARGE INPUTS FOR USER COMFORT */}
+            <div className="space-y-8 px-2">
+                
+                {/* Full Name */}
+                <div className="space-y-2">
+                    <label className="text-[12px] font-black uppercase tracking-widest text-black/40">Acquirer Name</label>
+                    <input 
+                       name="firstName" 
+                       value={formData.firstName} 
+                       onChange={handleInputChange} 
+                       placeholder="Enter Your Full Name" 
+                       className="w-full h-16 border-2 border-black/5 bg-zinc-50 focus:bg-white focus:border-black rounded-[8px] px-6 outline-none transition-all text-[16px] font-black placeholder:text-zinc-300"
+                    />
                 </div>
-                <div className="pt-6 border-t border-zinc-200/60 flex justify-between items-center"><span className="text-lg font-bold">Total Amount</span><span className="text-2xl font-black">₹{finalTotal}</span></div>
-             </div>
-           </div>
+
+                {/* Mobile Link */}
+                <div className="space-y-2">
+                    <label className="text-[12px] font-black uppercase tracking-widest text-black/40">Mobile Interface Node</label>
+                    <div className="flex gap-4">
+                       <div className="h-16 flex items-center justify-center px-4 bg-zinc-100 border-2 border-black/5 rounded-[8px] font-black text-[15px] opacity-60">+91</div>
+                       <input 
+                          name="phone" 
+                          value={formData.phone} 
+                          onChange={handleInputChange} 
+                          placeholder="MOBILE NUMBER" 
+                          className="flex-1 h-16 border-2 border-black/5 bg-zinc-50 focus:bg-white focus:border-black rounded-[8px] px-6 outline-none transition-all text-[16px] font-black placeholder:text-zinc-300"
+                       />
+                    </div>
+                </div>
+
+                {/* Pin Code Cluster */}
+                <div className="space-y-2">
+                    <label className="text-[12px] font-black uppercase tracking-widest text-black/40">Geo Node Pincode</label>
+                    <input 
+                       name="pinCode" 
+                       value={formData.pinCode} 
+                       onChange={handleInputChange} 
+                       placeholder="6 DIGIT PINCODE" 
+                       className="w-full h-16 border-2 border-black/5 bg-zinc-50 focus:bg-white focus:border-black rounded-[8px] px-6 outline-none transition-all text-[16px] font-black placeholder:text-zinc-300"
+                    />
+                </div>
+
+                {/* Address Node */}
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                        <label className="text-[12px] font-black uppercase tracking-widest text-black/40">Physical Destination</label>
+                        <button onClick={openMapPicker} className="text-[10px] font-black text-blue-600 bg-blue-50 px-4 py-2 rounded-full uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all">
+                           Auto-fill via GPS
+                        </button>
+                    </div>
+                    <textarea 
+                        name="address" 
+                        value={formData.address} 
+                        onChange={(e: any) => setFormData({...formData, address: e.target.value})}
+                        placeholder="House Number, Street, Sector, Landmark..." 
+                        className="w-full min-h-[140px] border-2 border-black/5 bg-zinc-50 focus:bg-white focus:border-black rounded-[8px] p-6 outline-none transition-all text-[15px] font-black leading-tight placeholder:text-zinc-300 resize-none"
+                    />
+                </div>
+            </div>
+
+            {/* Sticky/Floating Payment Trigger */}
+            <div className="sticky bottom-6 px-2">
+                <button 
+                  onClick={handlePayment}
+                  disabled={loading}
+                  className="w-full h-20 bg-black text-white text-[14px] font-black tracking-[0.4em] uppercase rounded-[12px] hover:bg-zinc-800 transition-all active:scale-[0.98] disabled:bg-zinc-200 shadow-2xl flex items-center justify-center gap-6"
+                >
+                  {loading ? (
+                     "INITIALIZING SECURE LINK..."
+                  ) : (
+                    <>
+                      <span>Pay ₹{cartTotal.toFixed(0)}</span>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </>
+                  )}
+                </button>
+                <div className="flex justify-center gap-6 mt-4 opacity-30 grayscale items-center">
+                     <span className="text-[10px] font-bold uppercase tracking-widest">Secured by Cashfree v3 Protocol</span>
+                </div>
+            </div>
         </div>
       </div>
-    </main>
+
+      {/* MAP MODAL (High Contrast) */}
+      {showMap && (
+        <div className="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-0 md:p-12">
+            <div className="bg-white w-full h-full md:h-[85vh] md:max-w-5xl flex flex-col relative overflow-hidden md:rounded-[20px] shadow-2xl">
+                <header className="p-8 flex justify-between items-center border-b-2 border-black/5">
+                    <h3 className="text-[14px] font-black uppercase tracking-[0.2em]">Move Map to Pinpoint House</h3>
+                    <button onClick={() => setShowMap(false)} className="bg-zinc-100 p-4 rounded-full text-black font-black uppercase text-[10px] tracking-widest">Close [X]</button>
+                </header>
+                <div id="checkout-map-portal" className="flex-1 bg-zinc-100 relative">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[100%] z-[10001] pointer-events-none">
+                        <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center text-white border-4 border-white shadow-2xl">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        </div>
+                        <div className="w-1 h-8 bg-black translate-x-[22px] mt-[-4px] shadow-2xl" />
+                    </div>
+                </div>
+                <footer className="p-8 bg-white border-t-2 border-black/5 flex flex-col md:flex-row items-center gap-6">
+                    <p className="text-[12px] font-bold text-zinc-400 uppercase tracking-widest text-center md:text-left flex-1">Drag map so the pin is exactly on your delivery building.</p>
+                    <button 
+                        onClick={confirmMapAddress}
+                        disabled={locating}
+                        className="w-full md:w-auto h-20 px-16 bg-black text-white text-[14px] font-black uppercase tracking-[0.3em] rounded-[12px] hover:bg-zinc-800 transition-all shadow-xl disabled:bg-zinc-300"
+                    >
+                        {locating ? "LOCKING NODE..." : "CONFIRM LOCATION"}
+                    </button>
+                </footer>
+            </div>
+        </div>
+      )}
+    </div>
   );
 }

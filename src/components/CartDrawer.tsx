@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import Link from "next/link";
 
@@ -107,13 +107,15 @@ export default function CartDrawer() {
               </div>
               
               <div className="flex flex-col gap-4">
-                 <Link 
-                    href="/checkout"
-                    onClick={toggleCart}
+                 <button 
+                    onClick={() => {
+                        // Redirect to our custom headless checkout
+                        window.location.href = '/checkout';
+                    }}
                     className="w-full h-16 bg-black text-white flex items-center justify-center text-[11px] font-bold tracking-[0.2em] uppercase rounded-[2px] hover:bg-zinc-800 transition-colors shadow-lg active:scale-95 duration-500"
                  >
                     Secure Checkout
-                 </Link>
+                 </button>
                  
                  <div className="flex flex-col gap-1.5 p-4 bg-white border border-black/5 rounded-[4px]">
                     <div className="flex items-center gap-2 text-[10px] font-extrabold text-black uppercase tracking-widest">
