@@ -1,3 +1,4 @@
+// MASTER_SYNC_DEPLOYMENT_ACTIVE: 2026-04-03
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
