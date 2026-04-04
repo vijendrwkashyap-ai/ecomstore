@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { amount, customer } = await req.json();
+    const { amount, customer, cart } = await req.json();
 
     // 1. Fetching from .env.local for security and flexibility
     const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID;
@@ -18,14 +18,15 @@ export async function POST(req: Request) {
       ? 'https://api.cashfree.com/pg/orders'
       : 'https://sandbox.cashfree.com/pg/orders';
 
-    // Use the WHITELISTED domein as the return bridge. 
-    // After payment, Cashfree redirects here with ?order_id=...
-    // Our bridge script will then redirect back to LOCALHOST.
     const returnUrl = `https://denimcode.myshopify.com/`;
 
+    // CRITICAL: Storing Cart Metadata in order_note so we can retrieve it even without client session
+    const cartSummary = cart ? JSON.stringify(cart) : "[]";
+
     const orderData = {
-      order_amount: 1, // FORCED TO 1 INR FOR TESTING
+      order_amount: amount || 1, // Final amount from checkout
       order_currency: "INR",
+      order_note: `META_CART|${cartSummary}`, // Injected Metadata Handshake
       customer_details: {
         customer_id: customer.id || "CUST_" + Date.now(),
         customer_email: customer.email,
@@ -34,7 +35,6 @@ export async function POST(req: Request) {
       },
       order_meta: {
         return_url: returnUrl,
-        // Webhook: Only allowed if it's HTTPS. Remove for localhost testing to prevent protocol errors.
         notify_url: (process.env.NEXT_PUBLIC_BASE_URL && process.env.NEXT_PUBLIC_BASE_URL.startsWith('https')) 
             ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/webhooks/cashfree`
             : undefined

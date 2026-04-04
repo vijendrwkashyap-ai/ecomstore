@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { order_id, customer, cart } = await req.json();
+    const { order_id, customer: clientCustomer, cart: clientCart } = await req.json();
 
     if (!order_id) {
        console.error("SYNC FAILED: MISSING ORDER ID.");
@@ -10,9 +10,9 @@ export async function POST(req: Request) {
     }
 
     console.log("------------------------------------------");
-    console.log("VERIFYING PAYMENT STATUS FOR ID:", order_id);
+    console.log("INITIATING INSTANT PAYMENT VERIFICATION FOR ID:", order_id);
     
-    // 1. CALL CASHFREE API TO VERIFY PAYMENT STATUS
+    // 1. FETCH STATUS & METADATA FROM CASHFREE (SERVER SOURCE OF TRUTH)
     const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID || '';
     const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY || '';
     const CASHFREE_ENV = process.env.CASHFREE_ENVIRONMENT || 'PRODUCTION';
@@ -30,59 +30,65 @@ export async function POST(req: Request) {
     });
 
     const cfOrderData = await cfVerifyRes.json();
-    
-    // Status can be PAID or ACTIVE (if redirect happened before webhook)
-    // We strictly use PAID for order creation
+    console.log("IMMEDIATE CHECK STATUS:", cfOrderData.order_status);
+
+    // Strictly check if PAID. If ACTIVE, it's not finished.
     const isPaid = cfOrderData.order_status === 'PAID';
 
     if (!isPaid) {
-        console.error("PAYMENT NOT VERIFIED YET. Current Status:", cfOrderData.order_status);
-        // Fallback: If it's ACTIVE, maybe it just needs a second. But for now, we follow strict PAID status.
+        console.error("INSTANT CHECK FAILED: STATUS IS", cfOrderData.order_status);
         return NextResponse.json({ 
             success: false, 
-            message: "Payment Not Verified", 
+            message: "Payment Is Processing", 
             status: cfOrderData.order_status 
         }, { status: 402 });
     }
 
-    console.log("PAYMENT CONFIRMED! INITIATING SHOPIFY SYNC...");
+    // 2. RETRIEVE CART DATA FROM METADATA (OR BACKUP FROM CLIENT)
+    let finalCart = clientCart;
+    if (!finalCart || finalCart.length === 0) {
+        if (cfOrderData.order_note && cfOrderData.order_note.startsWith('META_CART|')) {
+           try {
+             const cartJson = cfOrderData.order_note.split('META_CART|')[1];
+             finalCart = JSON.parse(cartJson);
+             console.log("SUCCESS: Recovered Cart Metadata from Cashfree Node.");
+           } catch(e) { console.error("METADATA DECODE CRASH:", e.message); }
+        }
+    }
 
-    // 2. PREPARE ROBUST SHOPIFY PAYLOAD
+    if (!finalCart || finalCart.length === 0) {
+        console.error("SYNC FATAL: NO CART DATA IN METADATA OR CLIENT.");
+        return NextResponse.json({ error: "Empty Cart Context" }, { status: 400 });
+    }
+
+    const finalCustomer = clientCustomer || {
+        name: cfOrderData.customer_details?.customer_name,
+        email: cfOrderData.customer_details?.customer_email,
+        phone: cfOrderData.customer_details?.customer_phone
+    };
+
+    console.log("PAYMENT CONFIRMED! NOW WRITING TO SHOPIFY MASTER DASHBOARD...");
+
+    // 3. SHOPIFY ORDER REGISTRATION (ROBUST FAIL-SAFE)
     const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN || '';
     const SHOPIFY_DOMAIN = process.env.NEXT_PUBLIC_SHOPIFY_DOMAIN || '';
 
-    // Create function for re-attempt
     const pushToShopify = async (items: any[]) => {
-        // E.164 formatting for phone
-        const rawPhone = customer.phone || "0000000000";
-        const formattedPhone = rawPhone.startsWith("+") ? rawPhone : `+91${rawPhone}`;
-
         const payload = {
             order: {
                 line_items: items,
                 customer: {
-                   first_name: customer.name || "Archive Member",
-                   email: customer.email || `guest_${Date.now()}@luvra-studios.com`, // Fallback for mobile-only checkout
-                   phone: formattedPhone,
-                },
-                shipping_address: {
-                   first_name: customer.name || "Archive Member",
-                   address1: customer.address || "Local Node Delivery",
-                   address2: customer.locality || "",
-                   phone: formattedPhone,
-                   zip: customer.pincode || "110001",
-                   city: "New Delhi",
-                   country: "India",
-                   province: "Delhi"
+                   first_name: finalCustomer.name || "Archive Member",
+                   email: finalCustomer.email,
+                   phone: finalCustomer.phone,
                 },
                 financial_status: "paid",
-                inventory_behaviour: "decrement_ignoring_policy", // CRITICAL: Ensure it handles out-of-stock
-                note: `Master Sync Handshake | Cashfree: ${order_id}`,
-                tags: "CASHFREE_VERIFIED_PAID"
+                note: `Iron-Clad Production Sync | Cashfree ID: ${order_id} | Ref: ${Date.now()}`,
+                tags: "CASHFREE_INSTANT_PAID"
             }
         };
 
-        const response = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2025-01/orders.json`, {
+        const response = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2024-04/orders.json`, {
             method: 'POST',
             headers: {
                 'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN,
@@ -93,56 +99,41 @@ export async function POST(req: Request) {
         return await response.json();
     };
 
-    // First Attempt: Full Sync with Variant IDs
-    const line_items_full = cart.map((item: any) => {
-        // Handle GIDs (gid://shopify/ProductVariant/12345)
-        let numericId = undefined;
-        if (item.id) {
-            const idStr = item.id.toString();
-            if (idStr.includes('ProductVariant/')) {
-                numericId = idStr.split('ProductVariant/').pop();
-            } else if (!isNaN(Number(idStr))) {
-                numericId = idStr;
-            }
-        }
+    // Attempt Full Creation
+    const line_items_full = finalCart.map((item: any) => ({
+        quantity: item.quantity || 1,
+        title: item.title || "Archive Piece",
+        price: (item.price || 1).toString(),
+        variant_id: (item.id && !isNaN(Number(item.id))) ? item.id.toString() : undefined
+    }));
 
-        return {
+    let shopifyResponse = await pushToShopify(line_items_full);
+
+    // Fail-Safe: Strip variant_id on 422 Rejection
+    if (shopifyResponse.errors) {
+        console.warn("FULL ORDER REJECTED. ATTEMPTING TITLE-ONLY FAIL-SAFE...");
+        const line_items_safe = finalCart.map((item: any) => ({
             quantity: item.quantity || 1,
-            title: item.title || "Archive Piece",
-            price: (item.price || 1).toString(),
-            variant_id: numericId ? parseInt(numericId) : undefined
-        };
-    });
-
-    let shopifyData = await pushToShopify(line_items_full);
-
-    // 422 or Errors? Attempt FAIL-SAFE (No Variant IDs)
-    if (shopifyData.errors) {
-        console.warn("FULL SYNC REJECTED. ATTEMPTING FAIL-SAFE TITLE-ONLY SYNC...");
-        const line_items_fail_safe = cart.map((item: any) => ({
-            quantity: item.quantity || 1,
-            title: item.title || "Archive Piece (Sync Error Fallback)",
+            title: item.title || "Archive Piece (Direct Sync Fallback)",
             price: (item.price || 1).toString()
         }));
-        
-        shopifyData = await pushToShopify(line_items_fail_safe);
+        shopifyResponse = await pushToShopify(line_items_safe);
     }
 
-    if (shopifyData.errors) {
-       console.error("!!! SHOPIFY CRITICAL REJECTION !!!", JSON.stringify(shopifyData.errors));
-       return NextResponse.json({ success: false, errors: shopifyData.errors }, { status: 422 });
+    if (shopifyResponse.errors) {
+       console.error("SHOPIFY MASTER REJECTION:", JSON.stringify(shopifyResponse.errors));
+       return NextResponse.json({ success: false, errors: shopifyResponse.errors }, { status: 422 });
     }
 
-    console.log("SUCCESS! Shopify Order Written ID:", shopifyData.order?.id);
+    console.log("SYNC SUCCESS! Shopify Order ID:", shopifyResponse.order?.id);
 
     return NextResponse.json({ 
        success: true, 
-       shopify_order_id: shopifyData.order?.id,
-       order_status_url: shopifyData.order?.order_status_url 
+       shopify_order_id: shopifyResponse.order?.id 
     });
 
   } catch (error: any) {
-    console.error("CRITICAL EXCEPTION IN SYNC WRITER:", error.message);
+    console.error("CRITICAL EXCEPTION IN INSTANT SYNC:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
