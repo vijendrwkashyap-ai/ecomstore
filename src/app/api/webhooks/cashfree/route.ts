@@ -55,17 +55,18 @@ export async function POST(req: Request) {
             ],
             customer: {
                first_name: customer?.customer_name || "LUVRA Customer",
-               email: customer?.customer_email,
+               email: customer?.customer_email || `webhook_guest_${Date.now()}@luvra-studios.com`,
                phone: customer?.customer_phone
             },
             financial_status: "paid",
+            inventory_behaviour: "decrement_ignoring_policy",
             status: "open",
             note: `Production Secure Sync | Cashfree ID: ${orderId}`,
             tags: "AUTOMATED_WEBHOOK_ORDER"
           }
         };
 
-        const shopifyRes = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2024-04/orders.json`, {
+        const shopifyRes = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2025-01/orders.json`, {
           method: 'POST',
           headers: {
             'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN,

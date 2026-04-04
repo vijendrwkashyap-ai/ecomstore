@@ -37,7 +37,12 @@ export async function POST(req: Request) {
 
     if (!isPaid) {
         console.error("PAYMENT NOT VERIFIED YET. Current Status:", cfOrderData.order_status);
-        return NextResponse.json({ success: false, message: "Payment Not Verified", status: cfOrderData.order_status }, { status: 402 });
+        // Fallback: If it's ACTIVE, maybe it just needs a second. But for now, we follow strict PAID status.
+        return NextResponse.json({ 
+            success: false, 
+            message: "Payment Not Verified", 
+            status: cfOrderData.order_status 
+        }, { status: 402 });
     }
 
     console.log("PAYMENT CONFIRMED! INITIATING SHOPIFY SYNC...");
@@ -48,31 +53,36 @@ export async function POST(req: Request) {
 
     // Create function for re-attempt
     const pushToShopify = async (items: any[]) => {
+        // E.164 formatting for phone
+        const rawPhone = customer.phone || "0000000000";
+        const formattedPhone = rawPhone.startsWith("+") ? rawPhone : `+91${rawPhone}`;
+
         const payload = {
             order: {
                 line_items: items,
                 customer: {
                    first_name: customer.name || "Archive Member",
-                   email: customer.email, // CRITICAL FIX: Shopify needs email!
-                   phone: customer.phone,
+                   email: customer.email || `guest_${Date.now()}@luvra-studios.com`, // Fallback for mobile-only checkout
+                   phone: formattedPhone,
                 },
                 shipping_address: {
                    first_name: customer.name || "Archive Member",
                    address1: customer.address || "Local Node Delivery",
                    address2: customer.locality || "",
-                   phone: customer.phone,
+                   phone: formattedPhone,
                    zip: customer.pincode || "110001",
                    city: "New Delhi",
                    country: "India",
                    province: "Delhi"
                 },
                 financial_status: "paid",
+                inventory_behaviour: "decrement_ignoring_policy", // CRITICAL: Ensure it handles out-of-stock
                 note: `Master Sync Handshake | Cashfree: ${order_id}`,
                 tags: "CASHFREE_VERIFIED_PAID"
             }
         };
 
-        const response = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2024-04/orders.json`, {
+        const response = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2025-01/orders.json`, {
             method: 'POST',
             headers: {
                 'X-Shopify-Access-Token': SHOPIFY_ADMIN_TOKEN,
@@ -84,12 +94,25 @@ export async function POST(req: Request) {
     };
 
     // First Attempt: Full Sync with Variant IDs
-    const line_items_full = cart.map((item: any) => ({
-        quantity: item.quantity || 1,
-        title: item.title || "Archive Piece",
-        price: (item.price || 1).toString(),
-        variant_id: (item.id && !isNaN(Number(item.id))) ? item.id.toString() : undefined
-    }));
+    const line_items_full = cart.map((item: any) => {
+        // Handle GIDs (gid://shopify/ProductVariant/12345)
+        let numericId = undefined;
+        if (item.id) {
+            const idStr = item.id.toString();
+            if (idStr.includes('ProductVariant/')) {
+                numericId = idStr.split('ProductVariant/').pop();
+            } else if (!isNaN(Number(idStr))) {
+                numericId = idStr;
+            }
+        }
+
+        return {
+            quantity: item.quantity || 1,
+            title: item.title || "Archive Piece",
+            price: (item.price || 1).toString(),
+            variant_id: numericId ? parseInt(numericId) : undefined
+        };
+    });
 
     let shopifyData = await pushToShopify(line_items_full);
 
@@ -114,7 +137,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
        success: true, 
-       shopify_order_id: shopifyData.order?.id 
+       shopify_order_id: shopifyData.order?.id,
+       order_status_url: shopifyData.order?.order_status_url 
     });
 
   } catch (error: any) {

@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     };
 
     // 2. Call Shopify Admin API
-    const response = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2024-10/orders.json`, {
+    const response = await fetch(`https://${SHOPIFY_DOMAIN}/admin/api/2025-01/orders.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
