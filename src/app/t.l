@@ -23,17 +23,30 @@
     (function() {
         const url = window.location.href;
         const query = new URLSearchParams(window.location.search);
-        
-        // Final Production Target
         const PROD_URL = "https://denimx-luxury.vercel.app";
 
-        // Detect ANY variation of Order ID from Cashfree
+        // MASTER DETECTION ARRAY (Every possible ID Cashfree might send)
+        const possibleIDs = [
+            query.get('order_id'),
+            query.get('orderId'),
+            query.get('cf_id'),
+            query.get('txId'),
+            query.get('transactionId')
+        ];
+
+        // Clean ID (picking the first non-null one)
+        let finalID = possibleIDs.find(id => !!id);
+
+        // FALLBACK: Regex scan of URL
+        if (!finalID) {
+            const match = url.match(/(order_id|orderId)=([^&]+)/);
+            if (match) finalID = match[2];
+        }
+
+        console.log("BRIDGE_SCAN_NODE:", { finalID, url });
+
+        // 1. INITIATE PAYMENT
         const sID = query.get('cashfree_session_id');
-        const oID = query.get('order_id') || query.get('orderId') || query.get('cf_id');
-
-        console.log("BRIDGE_SCAN:", { sID, oID });
-
-        // 1. INITIATE PAYMENT POPUP
         if (sID) {
             document.getElementById('bridge-ui').style.display = 'flex';
             document.getElementById('main-store-content').style.display = 'none';
@@ -41,21 +54,26 @@
                 try {
                     const cf = new Cashfree({ mode: "production" });
                     cf.checkout({ paymentSessionId: sID, redirectTarget: "_self" });
-                } catch(e) { alert("Bridge Crash: ID Invalid"); }
-            }, 500);
+                } catch(e) { alert("GENESIS_FAILURE: Session Node Invalid"); }
+            }, 600);
+            return;
         }
 
-        // 2. RETURN TO FRONTEND (THE REPAIRED NODE)
-        if (oID || url.includes('order_id=') || url.includes('orderId=')) {
+        // 2. UNIVERSAL REDIRECT HANDSHAKE (When returning with an ID)
+        if (finalID) {
+            console.log("SUCCESS_INTERCEPT: Bridging Node Return: " + finalID);
             document.getElementById('bridge-ui').style.display = 'flex';
             document.getElementById('main-store-content').style.display = 'none';
             
-            const finalID = oID || url.split('order_id=')[1]?.split('&')[0];
-            
-            console.log("SUCCESS_DETECTED: Bridging back with ID: " + finalID);
-            
-            // RELENTLESS REDIRECT TO PRODUCTION
+            // IMMEDIATE RELENTLESS REDIRECT
             window.location.replace(PROD_URL + "/order-success?order_id=" + finalID);
+            return;
+        }
+        
+        // 3. CHECKOUT BYPASS SCAN (If they came back to / checkout or /cart after payment)
+        if (url.includes('checkout') || url.includes('cart')) {
+             // Optional: If you want to check if they were in a payment session? 
+             // For now we leave normal navigation alone.
         }
     })();
     </script>
