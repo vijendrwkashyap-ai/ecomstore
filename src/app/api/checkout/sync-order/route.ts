@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { order_id, customer: clientCustomer, cart: clientCart } = await req.json();
+    const body = await req.json();
+    const { order_id, customer: clientCustomer, cart: clientCart } = body;
 
     if (!order_id) {
        console.error("SYNC FAILED: MISSING ORDER ID.");
@@ -10,9 +11,9 @@ export async function POST(req: Request) {
     }
 
     console.log("------------------------------------------");
-    console.log("INITIATING INSTANT PAYMENT VERIFICATION FOR ID:", order_id);
+    console.log("VERIFYING PAYMENT STATUS FOR ID:", order_id);
     
-    // 1. FETCH STATUS & METADATA FROM CASHFREE (SERVER SOURCE OF TRUTH)
+    // 1. FETCH STATUS & METADATA FROM CASHFREE
     const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID || '';
     const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY || '';
     const CASHFREE_ENV = process.env.CASHFREE_ENVIRONMENT || 'PRODUCTION';
@@ -30,46 +31,39 @@ export async function POST(req: Request) {
     });
 
     const cfOrderData = await cfVerifyRes.json();
-    console.log("IMMEDIATE CHECK STATUS:", cfOrderData.order_status);
-
-    // Strictly check if PAID. If ACTIVE, it's not finished.
-    const isPaid = cfOrderData.order_status === 'PAID';
+    const isPaid = cfOrderData && cfOrderData.order_status === 'PAID';
 
     if (!isPaid) {
-        console.error("INSTANT CHECK FAILED: STATUS IS", cfOrderData.order_status);
         return NextResponse.json({ 
             success: false, 
-            message: "Payment Is Processing", 
-            status: cfOrderData.order_status 
+            message: "Payment Not Verified", 
+            status: cfOrderData?.order_status 
         }, { status: 402 });
     }
 
-    // 2. RETRIEVE CART DATA FROM METADATA (OR BACKUP FROM CLIENT)
-    let finalCart = clientCart;
-    if (!finalCart || finalCart.length === 0) {
-        if (cfOrderData.order_note && cfOrderData.order_note.startsWith('META_CART|')) {
-           try {
-             const cartJson = cfOrderData.order_note.split('META_CART|')[1];
-             finalCart = JSON.parse(cartJson);
-             console.log("SUCCESS: Recovered Cart Metadata from Cashfree Node.");
-           } catch(e) { console.error("METADATA DECODE CRASH:", e.message); }
+    // 2. RETRIEVE CART DATA (EXPLICIT TYPES FOR BUILD SUCCESS)
+    let finalCart: any[] = clientCart || [];
+    
+    if (finalCart.length === 0 && cfOrderData?.order_note?.startsWith('META_CART|')) {
+        try {
+            const cartJson = cfOrderData.order_note.split('META_CART|')[1];
+            finalCart = JSON.parse(cartJson);
+        } catch(e) { 
+            console.error("Metadata Parse Error");
         }
     }
 
     if (!finalCart || finalCart.length === 0) {
-        console.error("SYNC FATAL: NO CART DATA IN METADATA OR CLIENT.");
         return NextResponse.json({ error: "Empty Cart Context" }, { status: 400 });
     }
 
     const finalCustomer = clientCustomer || {
-        name: cfOrderData.customer_details?.customer_name,
-        email: cfOrderData.customer_details?.customer_email,
-        phone: cfOrderData.customer_details?.customer_phone
+        name: cfOrderData?.customer_details?.customer_name,
+        email: cfOrderData?.customer_details?.customer_email,
+        phone: cfOrderData?.customer_details?.customer_phone
     };
 
-    console.log("PAYMENT CONFIRMED! NOW WRITING TO SHOPIFY MASTER DASHBOARD...");
-
-    // 3. SHOPIFY ORDER REGISTRATION (ROBUST FAIL-SAFE)
+    // 3. SHOPIFY ORDER REGISTRATION
     const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN || '';
     const SHOPIFY_DOMAIN = process.env.NEXT_PUBLIC_SHOPIFY_DOMAIN || '';
 
@@ -83,7 +77,7 @@ export async function POST(req: Request) {
                    phone: finalCustomer.phone,
                 },
                 financial_status: "paid",
-                note: `Iron-Clad Production Sync | Cashfree ID: ${order_id} | Ref: ${Date.now()}`,
+                note: `Iron-Clad Production Sync | Cashfree ID: ${order_id}`,
                 tags: "CASHFREE_INSTANT_PAID"
             }
         };
@@ -99,7 +93,6 @@ export async function POST(req: Request) {
         return await response.json();
     };
 
-    // Attempt Full Creation
     const line_items_full = finalCart.map((item: any) => ({
         quantity: item.quantity || 1,
         title: item.title || "Archive Piece",
@@ -109,23 +102,18 @@ export async function POST(req: Request) {
 
     let shopifyResponse = await pushToShopify(line_items_full);
 
-    // Fail-Safe: Strip variant_id on 422 Rejection
     if (shopifyResponse.errors) {
-        console.warn("FULL ORDER REJECTED. ATTEMPTING TITLE-ONLY FAIL-SAFE...");
         const line_items_safe = finalCart.map((item: any) => ({
             quantity: item.quantity || 1,
-            title: item.title || "Archive Piece (Direct Sync Fallback)",
+            title: item.title || "Archive Piece (Fallback)",
             price: (item.price || 1).toString()
         }));
         shopifyResponse = await pushToShopify(line_items_safe);
     }
 
     if (shopifyResponse.errors) {
-       console.error("SHOPIFY MASTER REJECTION:", JSON.stringify(shopifyResponse.errors));
        return NextResponse.json({ success: false, errors: shopifyResponse.errors }, { status: 422 });
     }
-
-    console.log("SYNC SUCCESS! Shopify Order ID:", shopifyResponse.order?.id);
 
     return NextResponse.json({ 
        success: true, 
@@ -133,7 +121,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error: any) {
-    console.error("CRITICAL EXCEPTION IN INSTANT SYNC:", error.message);
+    console.error("SYNC EXCEPTION:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
