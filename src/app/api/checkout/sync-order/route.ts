@@ -10,9 +10,6 @@ export async function POST(req: Request) {
        return NextResponse.json({ error: "Missing Order Reference" }, { status: 400 });
     }
 
-    console.log("------------------------------------------");
-    console.log("VERIFYING PAYMENT STATUS FOR ID:", order_id);
-    
     // 1. FETCH STATUS & METADATA FROM CASHFREE
     const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID || '';
     const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY || '';
@@ -36,21 +33,19 @@ export async function POST(req: Request) {
     if (!isPaid) {
         return NextResponse.json({ 
             success: false, 
-            message: "Payment Not Verified", 
+            message: "Payment Not Verified Yet", 
             status: cfOrderData?.order_status 
         }, { status: 402 });
     }
 
-    // 2. RETRIEVE CART DATA (EXPLICIT TYPES FOR BUILD SUCCESS)
+    // 2. RETRIEVE CART DATA
     let finalCart: any[] = clientCart || [];
     
     if (finalCart.length === 0 && cfOrderData?.order_note?.startsWith('META_CART|')) {
         try {
             const cartJson = cfOrderData.order_note.split('META_CART|')[1];
             finalCart = JSON.parse(cartJson);
-        } catch(e) { 
-            console.error("Metadata Parse Error");
-        }
+        } catch(e) { console.error("Metadata Recovery Failed"); }
     }
 
     if (!finalCart || finalCart.length === 0) {
@@ -77,7 +72,7 @@ export async function POST(req: Request) {
                    phone: finalCustomer.phone,
                 },
                 financial_status: "paid",
-                note: `Iron-Clad Production Sync | Cashfree ID: ${order_id}`,
+                note: `Iron-Clad Production Sync | Cashfree ID: ${order_id} | TEST_PRICE_₹1`,
                 tags: "CASHFREE_INSTANT_PAID"
             }
         };
@@ -93,25 +88,17 @@ export async function POST(req: Request) {
         return await response.json();
     };
 
-    const line_items_full = finalCart.map((item: any) => ({
+    // Force Price to 1.00 for TEST SYNC
+    const line_items_test = finalCart.map((item: any) => ({
         quantity: item.quantity || 1,
         title: item.title || "Archive Piece",
-        price: (item.price || 1).toString(),
-        variant_id: (item.id && !isNaN(Number(item.id))) ? item.id.toString() : undefined
+        price: "1.00" // !!! OVERRIDE TO 1 INR FOR TESTING !!!
     }));
 
-    let shopifyResponse = await pushToShopify(line_items_full);
+    let shopifyResponse = await pushToShopify(line_items_test);
 
     if (shopifyResponse.errors) {
-        const line_items_safe = finalCart.map((item: any) => ({
-            quantity: item.quantity || 1,
-            title: item.title || "Archive Piece (Fallback)",
-            price: (item.price || 1).toString()
-        }));
-        shopifyResponse = await pushToShopify(line_items_safe);
-    }
-
-    if (shopifyResponse.errors) {
+       console.error("SHOPIFY CRITICAL REJECTION:", JSON.stringify(shopifyResponse.errors));
        return NextResponse.json({ success: false, errors: shopifyResponse.errors }, { status: 422 });
     }
 
